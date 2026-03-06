@@ -1,6 +1,6 @@
 {
   "name": "jobappid-kiosk",
-  "version": "1.0.22",
+  "version": "1.0.25",
   "main": "dist/main.js",
   "description": "JobAppID Kiosk",
   "author": "JobAppID",
@@ -12,6 +12,8 @@
     "rebuild": "electron-rebuild -f -w keytar",
     "pack": "npm run build && npm run rebuild && electron-builder --dir",
     "dist": "npm run build && npm run rebuild && electron-builder",
+    "pack:linux": "npm run build && npm run rebuild && electron-builder --linux --arm64 --dir",
+    "dist:linux": "npm run build && npm run rebuild && electron-builder --linux --arm64",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
@@ -56,6 +58,19 @@
       "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
+    },
+    "linux": {
+      "category": "Utility",
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "JobAppID-Kiosk-${version}-linux-${arch}.${ext}"
     },
     "publish": [
       {
