@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>JobAppID Kiosk v1.0.2</title>
+  <title>JobAppID Kiosk v1</title>
   <style>
     body { font-family: Arial, sans-serif; background:#111; color:#fff; display:flex; justify-content:center; align-items:center; height:100vh; margin:0; }
     .card { background:#222; padding:28px; border-radius:10px; width:520px; text-align:center; position: relative; }
@@ -10,14 +10,18 @@
     button { margin-top:14px; padding:12px; font-size:18px; width:100%; cursor:pointer; }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
     .muted { color:#bbb; font-size:14px; margin-top:10px; }
-    .ok { color:#8f8; }
+    .ok { color:rgb(245, 201, 55); }
     .err { color:#f88; }
     .row { text-align:left; margin-top:10px; }
     .badge { font-family: monospace; background:#333; padding:6px 10px; border-radius:8px; display:inline-block; }
 
-    /* =========================
-       Header logo (small after load)
-       ========================= */
+    /* ✅ PIN fields: nicer kiosk-style look */
+    #pairExitPin, #exitPin {
+      letter-spacing: 10px;
+      text-align: center;
+      font-size: 22px;
+    }
+
     .header {
       display:flex;
       align-items:center;
@@ -26,27 +30,24 @@
       margin-bottom: 8px;
     }
     .header-logo {
-      width: 122px;
-      height: 92px;
+      width: 322px;
+      height: 142px;
       object-fit: contain;
       border-radius: 10px;
       background: #00000000;
       padding: 0px;
-      border: 1px solid #33333300;
+      border: 1px solid #00000000;
     }
     .header-title {
       margin: 0;
-      font-size: 24px;
-      line-height: 1;
+      font-size: 16px;
+      line-height: 3;
     }
 
-    /* =========================
-       Splash overlay (big logo while loading)
-       ========================= */
     .splash {
       position: fixed;
       inset: 0;
-      background: #00000000;
+      background: #000;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -62,18 +63,28 @@
       padding: 24px;
     }
     .splash-logo {
-      width: min(420px, 70vw);
+      width: min(520px, 92vw);
       height: auto;
       object-fit: contain;
       filter: drop-shadow(0 12px 30px rgba(0,0,0,0.65));
+      user-select: none;
+      -webkit-user-select: none;
     }
     .splash-text {
       color: #bbb;
       font-size: 14px;
       letter-spacing: 0.3px;
+      min-height: 18px;
     }
 
-    /* Applicant status pill */
+    .splash-canvas {
+      display: none;
+      width: min(520px, 92vw);
+      height: auto;
+      filter: drop-shadow(0 12px 30px rgba(0,0,0,0.65));
+      border-radius: 8px;
+    }
+
     .pill {
       display:inline-block;
       padding:6px 10px;
@@ -87,7 +98,6 @@
     .pill.ok { color:#8f8; border-color:#2c5; background:#132; }
     .pill.err { color:#f88; border-color:#a44; background:#311; }
 
-    /* Pair screen footer and exit panel */
     .pair-footer {
       margin-top: 14px;
       border-top: 1px solid #333;
@@ -112,9 +122,6 @@
       margin-top: 0;
     }
 
-    /* =========================
-       NEW: Pairing numeric keypad (pair screen only)
-       ========================= */
     .pair-display {
       font-size: 28px;
       text-align: center;
@@ -143,12 +150,11 @@
     .pair-pad button:active { transform: scale(0.98); }
 
     .pair-pad .pair-pad-wide {
-      grid-column: span 1; /* kept for clarity if you want to widen later */
+      grid-column: span 1;
       font-size: 18px;
       padding: 18px 10px;
     }
 
-    /* Receipt panel (kept same class name to avoid breaking anything) */
     .qr-wrap {
       margin-top: 14px;
       padding: 14px;
@@ -188,9 +194,6 @@
       overflow: auto;
     }
 
-    /* =========================
-       Email panel + keyboard
-       ========================= */
     .email-panel {
       margin-top: 12px;
       padding: 12px;
@@ -274,30 +277,25 @@
 </head>
 <body>
 
-  <!-- Splash overlay (shows on launch) -->
   <div id="splash" class="splash">
     <div class="splash-inner">
-      <img class="splash-logo" src="jobappid-logo.png" alt="JobAppID" />
-      <div class="splash-text">Loading JobAppID Kiosk…</div>
+      <img id="splashLogo" class="splash-logo" src="jobappid-logo.png" alt="JobAppID" />
+      <canvas id="splashCanvas" class="splash-canvas"></canvas>
+      <div class="splash-text"></div>
     </div>
   </div>
 
   <div class="card">
-
-    <!-- Header with small logo (always visible once loaded) -->
     <div class="header">
       <img class="header-logo" src="jobappid-logo.png" alt="JobAppID" />
-      <h2 id="title" class="header-title">JobAppID Kiosk v1.0.2</h2>
+      <h2 id="title" class="header-title">Welcome</h2>
     </div>
 
-    <!-- Screen: Pairing -->
     <div id="screen-pair" style="display:none;">
       <p>Enter 6-digit pairing code</p>
 
-      <!-- CHANGED: readonly display + keypad below -->
       <input id="pairCode" class="pair-display" maxlength="6" inputmode="numeric" readonly />
 
-      <!-- NEW: keypad (pair screen only) -->
       <div class="pair-pad" id="pairPad">
         <button type="button" data-digit="1">1</button>
         <button type="button" data-digit="2">2</button>
@@ -324,7 +322,17 @@
 
         <div id="pairExitPanel" class="pair-exit-panel" style="display:none;">
           <div class="row" style="margin-top:0;">Admin PIN (to Exit):</div>
-          <input id="pairExitPin" placeholder="Enter admin PIN" inputmode="numeric" />
+
+          <!-- ✅ UPDATED: masked + 4 digits only -->
+          <input
+            id="pairExitPin"
+            type="password"
+            placeholder="Enter admin PIN"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            maxlength="4"
+            autocomplete="off"
+          />
 
           <div class="pair-actions">
             <button id="pairExitBtn">Exit Now</button>
@@ -338,17 +346,15 @@
       </div>
     </div>
 
-    <!-- Screen: Idle -->
     <div id="screen-idle" style="display:none;">
       <p class="ok" id="bizName"></p>
-      <h3>Tap/Scan your badge to start</h3>
-      <p class="muted">Barcode scanners usually act like a keyboard. Scan, then press Enter (or scanner sends Enter).</p>
-      <div class="row muted">Debug: you can type a badge token and press Enter.</div>
+      <h3>Tap your badge to start</h3>
+      <p class="muted"></p>
+      <div class="row muted"></div>
       <input id="badgeInput" placeholder="Scan badge token then press Enter" />
       <button id="adminBtn" style="margin-top:10px; display:none;">Admin / Reset Pairing</button>
     </div>
 
-    <!-- Screen: Admin -->
     <div id="screen-admin" style="display:none;">
       <h3>Paired</h3>
       <p class="ok" id="adminBiz"></p>
@@ -357,14 +363,24 @@
       <button id="resetBtn">Reset Pairing</button>
 
       <div class="row" style="margin-top:14px;">Admin PIN (to Exit):</div>
-      <input id="exitPin" placeholder="Enter admin PIN" inputmode="numeric" />
+
+      <!-- ✅ UPDATED: masked + 4 digits only -->
+      <input
+        id="exitPin"
+        type="password"
+        placeholder="Enter admin PIN"
+        inputmode="numeric"
+        pattern="[0-9]*"
+        maxlength="4"
+        autocomplete="off"
+      />
+
       <button id="exitBtn">Exit Kiosk (Admin)</button>
 
       <button id="adminBackBtn">Back</button>
       <p class="muted" style="margin-top:10px;">Exit requires admin PIN.</p>
     </div>
 
-    <!-- Screen: Confirm -->
     <div id="screen-confirm" style="display:none;">
       <h3>Confirm your application</h3>
 
@@ -381,28 +397,24 @@
       <div class="row" style="margin-top:14px;">Enter Patron ID to confirm:</div>
       <input id="patronId" placeholder="4-digit Patron ID" inputmode="numeric" />
 
-      <div class="row" style="margin-top:14px;">Select position (optional):</div>
+      <div class="row" style="margin-top:14px;">Select position:</div>
       <select id="positionSelect">
-        <option value="">(No position selected)</option>
+        <option value="">(Select a position)</option>
       </select>
 
       <button id="submitBtn" disabled>Submit Application</button>
       <button id="backBtn">Back</button>
 
-      <p class="muted">Submit stays disabled until the badge lookup succeeds.</p>
+      <p class="muted">Submit stays disabled until badge lookup succeeds AND a position is selected.</p>
     </div>
 
-    <!-- Screen: Success -->
     <div id="screen-success" style="display:none;">
       <h3 class="ok">Application submitted</h3>
       <p id="successLine"></p>
       <p class="muted" id="successMeta"></p>
 
-      <!-- Receipt block (QR image removed, but receipt text kept) -->
       <div class="qr-wrap">
         <div class="qr-title">Receipt</div>
-
-        <!-- ✅ REMOVED: QR canvas image -->
 
         <div class="muted">Receipt details are shown below.</div>
         <textarea id="qrText" class="qr-text" readonly></textarea>
@@ -410,12 +422,10 @@
         <div class="qr-actions">
           <button id="sendEmailToggleBtn">Send to Email</button>
           <button id="sendEmailAutoBtn">Auto-send to badge email</button>
-          <!-- ✅ REMOVED: Regenerate QR button -->
         </div>
 
         <div id="autoEmailMsg" class="muted" style="margin-top:10px;"></div>
 
-        <!-- Email panel -->
         <div id="emailPanel" class="email-panel">
           <div style="font-weight:700;">Email Receipt</div>
           <div class="muted" style="margin-top:6px;">Enter an email address, then press Send.</div>
@@ -438,7 +448,6 @@
     <p id="status" class="muted"></p>
   </div>
 
-  <!-- On-screen keyboard overlay -->
   <div id="kbdOverlay" class="kbd-overlay">
     <div class="kbd">
       <div class="kbd-top">
@@ -456,14 +465,119 @@
     </div>
   </div>
 
-  <!-- QR library (left in place intentionally so nothing else breaks) -->
   <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
 
   <script>
-    // =========================
-    // Admin visibility settings
-    // =========================
-    const DEV_MODE = false; // show admin button always when true (dev only)
+    const SPLASH_MIN_MS = 4000;
+    const SHATTER_MS   = 1100;
+    let splashShownAt = Date.now();
+    let splashHiding = false;
+
+    const ENABLE_SHATTER_SOUND = true;
+    const SHATTER_VOL = 0.18;
+
+    let _audioCtx = null;
+    let _audioUnlocked = false;
+
+    function _getAudioCtx() {
+      if (_audioCtx) return _audioCtx;
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      _audioCtx = new Ctx();
+      return _audioCtx;
+    }
+
+    async function unlockAudioOnce() {
+      if (_audioUnlocked) return;
+      const ctx = _getAudioCtx();
+      if (!ctx) return;
+      try {
+        if (ctx.state === "suspended") await ctx.resume();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        g.gain.value = 0;
+        o.connect(g).connect(ctx.destination);
+        o.start();
+        o.stop(ctx.currentTime + 0.01);
+        _audioUnlocked = true;
+      } catch {}
+    }
+
+    window.addEventListener("pointerdown", unlockAudioOnce, { once: true, passive: true });
+    window.addEventListener("keydown", unlockAudioOnce, { once: true });
+
+    function playShatterCue() {
+      if (!ENABLE_SHATTER_SOUND) return;
+      const ctx = _getAudioCtx();
+      if (!ctx) return;
+
+      if (ctx.state === "suspended") {
+        ctx.resume?.().catch(() => {});
+      }
+
+      const t0 = ctx.currentTime + 0.01;
+
+      try {
+        const dur = 0.12;
+        const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * dur));
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+
+        for (let i = 0; i < bufferSize; i++) {
+          const x = (i / bufferSize);
+          const env = Math.pow(1 - x, 2.2);
+          data[i] = (Math.random() * 2 - 1) * env;
+        }
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = noiseBuffer;
+
+        const hp = ctx.createBiquadFilter();
+        hp.type = "highpass";
+        hp.frequency.setValueAtTime(900, t0);
+
+        const bp = ctx.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.frequency.setValueAtTime(2600, t0);
+        bp.Q.setValueAtTime(0.9, t0);
+
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(SHATTER_VOL, t0 + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+        const o1 = ctx.createOscillator();
+        const o2 = ctx.createOscillator();
+        o1.type = "triangle";
+        o2.type = "sine";
+        o1.frequency.setValueAtTime(1200, t0);
+        o2.frequency.setValueAtTime(2100, t0);
+
+        const gTink = ctx.createGain();
+        gTink.gain.setValueAtTime(0.0001, t0);
+        gTink.gain.exponentialRampToValueAtTime(SHATTER_VOL * 0.35, t0 + 0.008);
+        gTink.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
+
+        noise.connect(hp);
+        hp.connect(bp);
+        bp.connect(gain);
+        gain.connect(ctx.destination);
+
+        o1.connect(gTink);
+        o2.connect(gTink);
+        gTink.connect(ctx.destination);
+
+        noise.start(t0);
+        noise.stop(t0 + dur);
+
+        o1.start(t0);
+        o2.start(t0);
+        o1.stop(t0 + 0.07);
+        o2.stop(t0 + 0.07);
+      } catch {}
+    }
+
+    const DEV_MODE = false;
     const ADMIN_HOTKEY = { ctrl: true, shift: true, key: "A" };
     const ADMIN_AUTO_HIDE_MS = 15000;
     const ADMIN_UNLOCK_PIN = "1492";
@@ -473,15 +587,176 @@
 
     const el = (id) => document.getElementById(id);
 
-    // Splash
     const splashEl = el("splash");
-    function hideSplash() {
-      if (!splashEl) return;
-      splashEl.style.display = "none";
-    }
+    const splashLogoEl = el("splashLogo");
+    const splashCanvasEl = el("splashCanvas");
+
     function showSplash() {
       if (!splashEl) return;
+      splashHiding = false;
+      splashShownAt = Date.now();
       splashEl.style.display = "flex";
+
+      if (splashLogoEl) splashLogoEl.style.display = "";
+      if (splashCanvasEl) splashCanvasEl.style.display = "none";
+      if (splashCanvasEl) {
+        splashCanvasEl.style.width = "";
+        splashCanvasEl.style.height = "";
+      }
+      try {
+        const ctx = splashCanvasEl?.getContext?.("2d");
+        if (ctx && splashCanvasEl) ctx.clearRect(0, 0, splashCanvasEl.width, splashCanvasEl.height);
+      } catch {}
+    }
+
+    function hideSplash() {
+      if (!splashEl || splashHiding) return;
+      splashHiding = true;
+
+      const elapsed = Date.now() - splashShownAt;
+      const remaining = Math.max(0, SPLASH_MIN_MS - elapsed);
+
+      setTimeout(() => {
+        shatterAndHideSplash();
+      }, remaining);
+    }
+
+    function shatterAndHideSplash() {
+      if (!splashEl) return;
+
+      if (!splashCanvasEl || !splashLogoEl) {
+        splashEl.style.display = "none";
+        return;
+      }
+
+      const img = splashLogoEl;
+
+      const run = () => {
+        const rect = img.getBoundingClientRect();
+        if (!rect.width || !rect.height) {
+          splashEl.style.display = "none";
+          return;
+        }
+
+        playShatterCue();
+
+        img.style.display = "none";
+        splashCanvasEl.style.display = "block";
+
+        splashCanvasEl.style.width = rect.width + "px";
+        splashCanvasEl.style.height = rect.height + "px";
+
+        const dpr = window.devicePixelRatio || 1;
+        const cw = Math.max(1, Math.floor(rect.width * dpr));
+        const ch = Math.max(1, Math.floor(rect.height * dpr));
+        splashCanvasEl.width = cw;
+        splashCanvasEl.height = ch;
+
+        const ctx = splashCanvasEl.getContext("2d");
+        if (!ctx) {
+          splashEl.style.display = "none";
+          return;
+        }
+
+        ctx.setTransform(1,0,0,1,0,0);
+        ctx.scale(dpr, dpr);
+
+        const natW = img.naturalWidth || rect.width;
+        const natH = img.naturalHeight || rect.height;
+
+        const COLS = 22;
+        const ROWS = 12;
+        const shardW = rect.width / COLS;
+        const shardH = rect.height / ROWS;
+
+        const shards = [];
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const dx = c * shardW;
+            const dy = r * shardH;
+
+            const sx = (c / COLS) * natW;
+            const sy = (r / ROWS) * natH;
+            const sw = (1 / COLS) * natW;
+            const sh = (1 / ROWS) * natH;
+
+            const px = dx + shardW / 2;
+            const py = dy + shardH / 2;
+
+            const vxBase = (px - centerX) / centerX;
+            const vyBase = (py - centerY) / centerY;
+
+            const speed = 140 + Math.random() * 220;
+            const vx = vxBase * speed + (Math.random() - 0.5) * 120;
+            const vy = vyBase * speed + (Math.random() - 0.5) * 120 - 60;
+
+            shards.push({
+              sx, sy, sw, sh,
+              x: dx, y: dy,
+              w: shardW, h: shardH,
+              vx, vy,
+              rot: (Math.random() - 0.5) * 0.6,
+              vr: (Math.random() - 0.5) * 6.0,
+              a: 1
+            });
+          }
+        }
+
+        const t0 = performance.now();
+        const gravity = 720;
+        const fadeStart = SHATTER_MS * 0.45;
+
+        function frame(t) {
+          const ms = t - t0;
+          const dt = Math.min(0.033, (t - (frame._pt || t)) / 1000);
+          frame._pt = t;
+
+          ctx.clearRect(0, 0, rect.width, rect.height);
+
+          for (const s of shards) {
+            s.vy += gravity * dt;
+            s.x += s.vx * dt;
+            s.y += s.vy * dt;
+            s.rot += s.vr * dt;
+
+            if (ms > fadeStart) {
+              const k = (ms - fadeStart) / Math.max(1, (SHATTER_MS - fadeStart));
+              s.a = Math.max(0, 1 - k);
+            }
+            if (s.a <= 0) continue;
+
+            ctx.save();
+            ctx.globalAlpha = s.a;
+            ctx.translate(s.x + s.w / 2, s.y + s.h / 2);
+            ctx.rotate(s.rot);
+
+            ctx.drawImage(
+              img,
+              s.sx, s.sy, s.sw, s.sh,
+              -s.w / 2, -s.h / 2,
+              s.w, s.h
+            );
+
+            ctx.restore();
+          }
+
+          if (ms < SHATTER_MS) {
+            requestAnimationFrame(frame);
+          } else {
+            splashEl.style.display = "none";
+            splashCanvasEl.style.display = "none";
+          }
+        }
+
+        ctx.drawImage(img, 0, 0, natW, natH, 0, 0, rect.width, rect.height);
+        requestAnimationFrame(frame);
+      };
+
+      if (img.complete && img.naturalWidth) run();
+      else img.onload = run;
     }
 
     const screens = {
@@ -510,22 +785,28 @@
     const exitPinEl = el("exitPin");
     const submitBtnEl = el("submitBtn");
 
-    // Pair screen exit elements
     const pairExitToggleBtnEl = el("pairExitToggleBtn");
     const pairExitPanelEl = el("pairExitPanel");
     const pairExitPinEl = el("pairExitPin");
     const pairExitBtnEl = el("pairExitBtn");
     const pairExitCancelBtnEl = el("pairExitCancelBtn");
 
-    // NEW: pairing keypad elements
+    /* ✅ NEW: enforce numeric 4-digit admin PIN (1492) in UI inputs */
+    function enforce4DigitPin(input) {
+      if (!input) return;
+      input.addEventListener("input", () => {
+        input.value = String(input.value || "").replace(/\D/g, "").slice(0, 4);
+      });
+    }
+    enforce4DigitPin(pairExitPinEl);
+    enforce4DigitPin(exitPinEl);
+
     const pairPadEl = el("pairPad");
     const pairClearBtnEl = el("pairClearBtn");
     const pairBackBtnEl = el("pairBackBtn");
 
-    // Receipt text (still using same ids to avoid changes elsewhere)
     const qrTextEl = el("qrText");
 
-    // Email UI elements
     const sendEmailToggleBtnEl = el("sendEmailToggleBtn");
     const emailPanelEl = el("emailPanel");
     const emailInputEl = el("emailInput");
@@ -534,11 +815,9 @@
     const emailCancelBtnEl = el("emailCancelBtn");
     const emailMsgEl = el("emailMsg");
 
-    // Auto-send UI
     const sendEmailAutoBtnEl = el("sendEmailAutoBtn");
     const autoEmailMsgEl = el("autoEmailMsg");
 
-    // Keyboard elements
     const kbdOverlayEl = el("kbdOverlay");
     const kbdKeysEl = el("kbdKeys");
     const kbdBackspaceBtnEl = el("kbdBackspaceBtn");
@@ -631,6 +910,11 @@
       submitBtnEl.disabled = !enabled;
     }
 
+    function refreshSubmitEnabled() {
+      const hasPos = !!(positionSelectEl && String(positionSelectEl.value || "").trim());
+      setSubmitEnabled(!!lookupOk && hasPos);
+    }
+
     async function loadProfile() {
       statusEl.innerText = "Loading business profile...";
       const meResp = await window.jobappid.kioskMe();
@@ -643,13 +927,24 @@
       cachedMe = meResp.data;
       bizNameEl.innerText = `Business: ${cachedMe.business.name}`;
 
-      positionSelectEl.innerHTML = `<option value="">(No position selected)</option>`;
+      positionSelectEl.innerHTML = `<option value="">(Select a position)</option>`;
       (cachedMe.positions || []).forEach(p => {
         const opt = document.createElement("option");
         opt.value = p.id;
-        opt.textContent = p.title;
+
+        const closed = (p.is_open === false);
+        const reason = p.closed_reason === "paused"
+          ? "Not hiring (paused)"
+          : p.closed_reason === "full"
+            ? `Not hiring (full ${p.new_app_count}/${p.max_active_apps})`
+            : "";
+
+        opt.textContent = closed ? `${p.title} — ${reason}` : p.title;
+        opt.disabled = closed;
         positionSelectEl.appendChild(opt);
       });
+
+      positionSelectEl.addEventListener("change", () => refreshSubmitEnabled());
 
       statusEl.innerText = "";
       return true;
@@ -674,16 +969,7 @@
       hideSplash();
     }
 
-    // =========================
-    // NEW: Pairing keypad logic (pair screen only)
-    // =========================
     const PAIR_LEN = 6;
-
-    function pairSetValue(v) {
-      if (!pairCodeEl) return;
-      const digitsOnly = String(v || "").replace(/\D/g, "").slice(0, PAIR_LEN);
-      pairCodeEl.value = digitsOnly;
-    }
 
     function pairAppendDigit(d) {
       if (!pairCodeEl) return;
@@ -702,53 +988,41 @@
       pairCodeEl.value = "";
     }
 
-    // Handle tapping keypad buttons
     if (pairPadEl) {
       pairPadEl.addEventListener("click", (e) => {
         const t = e.target;
         if (!t || !t.getAttribute) return;
         const digit = t.getAttribute("data-digit");
-        if (digit && /^\d$/.test(digit)) {
-          pairAppendDigit(digit);
-        }
+        if (digit && /^\d$/.test(digit)) pairAppendDigit(digit);
       });
     }
     if (pairClearBtnEl) pairClearBtnEl.addEventListener("click", () => pairClear());
     if (pairBackBtnEl) pairBackBtnEl.addEventListener("click", () => pairBackspace());
 
-    // Optional: if a physical keyboard exists, allow digits/backspace/enter ONLY on pairing screen
     document.addEventListener("keydown", (e) => {
-      // Only when the pairing screen is showing
       if (!screens.pair || screens.pair.style.display !== "block") return;
 
-      // Allow Enter to trigger Pair button
       if (e.key === "Enter") {
         e.preventDefault();
         el("pairBtn")?.click();
         return;
       }
 
-      // Backspace works
       if (e.key === "Backspace") {
         e.preventDefault();
         pairBackspace();
         return;
       }
 
-      // Digits append
       if (/^\d$/.test(e.key)) {
         e.preventDefault();
         pairAppendDigit(e.key);
         return;
       }
 
-      // Block everything else (letters, symbols)
       e.preventDefault();
     });
 
-    // =========================
-    // Receipt helpers (QR image removed, but receipt text stays)
-    // =========================
     function buildReceiptText(_receipt) {
       const business = (cachedMe?.business?.name || "").trim();
 
@@ -781,9 +1055,6 @@
       if (qrTextEl) qrTextEl.value = lastReceiptString;
     }
 
-    // =========================
-    // Email UI + Keyboard
-    // =========================
     function isValidEmail(v) {
       const s = String(v || "").trim();
       return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
@@ -987,22 +1258,19 @@
       sendEmailAutoBtnEl.addEventListener("click", () => sendReceiptEmailAuto());
     }
 
-    // =========================
-    // Badge Lookup (Submit gated)
-    // =========================
     async function loadApplicantFromBadge(token) {
       currentApplicant = null;
       lookupOk = false;
 
       applicantNameEl.innerText = "(unknown)";
       setLookupStatus("muted", "Looking up badge…");
-      setSubmitEnabled(false);
+      refreshSubmitEnabled();
 
       if (!window.jobappid || typeof window.jobappid.badgeLookup !== "function") {
         applicantNameEl.innerText = "(lookup not wired yet)";
         setLookupStatus("err", "Badge lookup not wired yet.");
         lookupOk = false;
-        setSubmitEnabled(false);
+        refreshSubmitEnabled();
         return;
       }
 
@@ -1018,7 +1286,7 @@
         applicantNameEl.innerText = msg;
         setLookupStatus("err", msg);
         lookupOk = false;
-        setSubmitEnabled(false);
+        refreshSubmitEnabled();
         currentApplicant = null;
         return;
       }
@@ -1031,7 +1299,7 @@
         applicantNameEl.innerText = "(name missing)";
         setLookupStatus("err", "Badge found but missing first/last name.");
         lookupOk = false;
-        setSubmitEnabled(false);
+        refreshSubmitEnabled();
         currentApplicant = resp.data;
         return;
       }
@@ -1039,7 +1307,7 @@
       applicantNameEl.innerText = full;
       setLookupStatus("ok", "Badge verified.");
       lookupOk = true;
-      setSubmitEnabled(true);
+      refreshSubmitEnabled();
       currentApplicant = resp.data;
     }
 
@@ -1053,7 +1321,7 @@
       applicantNameEl.innerText = "(loading...)";
       setLookupStatus("muted", "Looking up badge…");
       lookupOk = false;
-      setSubmitEnabled(false);
+      refreshSubmitEnabled();
 
       show("confirm");
 
@@ -1068,7 +1336,6 @@
       beginApplicationFromToken(t);
     };
 
-    // Pair screen
     el("pairBtn").addEventListener("click", async () => {
       const code = pairCodeEl.value.trim();
       if (code.length !== 6) {
@@ -1084,7 +1351,6 @@
       await boot();
     });
 
-    // Pair screen Exit toggle
     if (pairExitToggleBtnEl && pairExitPanelEl) {
       pairExitToggleBtnEl.addEventListener("click", () => {
         const showing = pairExitPanelEl.style.display === "block";
@@ -1094,7 +1360,6 @@
       });
     }
 
-    // Pair screen Exit cancel
     if (pairExitCancelBtnEl) {
       pairExitCancelBtnEl.addEventListener("click", () => {
         if (pairExitPanelEl) pairExitPanelEl.style.display = "none";
@@ -1104,7 +1369,6 @@
       });
     }
 
-    // Pair screen Exit now
     if (pairExitBtnEl) {
       pairExitBtnEl.addEventListener("click", async () => {
         const pin = (pairExitPinEl?.value || "").trim();
@@ -1136,7 +1400,6 @@
       });
     }
 
-    // Idle: open Admin
     adminBtnEl.addEventListener("click", async () => {
       const st = await window.jobappid.getStatus();
       adminBizEl.innerText = `Business: ${cachedMe?.business?.name ?? st.business?.name ?? "Unknown"}`;
@@ -1149,7 +1412,6 @@
       }
     });
 
-    // Admin actions
     el("resetBtn").addEventListener("click", async () => {
       statusEl.innerText = "Resetting...";
       await window.jobappid.reset();
@@ -1157,7 +1419,6 @@
       show("pair");
     });
 
-    // Exit Kiosk (Admin with PIN)
     el("exitBtn").addEventListener("click", async () => {
       const pin = (exitPinEl?.value || "").trim();
       if (!pin) {
@@ -1192,7 +1453,6 @@
       setTimeout(() => badgeInputEl.focus(), 50);
     });
 
-    // Idle: barcode/manual input
     badgeInputEl.addEventListener("keydown", async (e) => {
       if (e.key !== "Enter") return;
       const token = badgeInputEl.value.trim();
@@ -1201,12 +1461,11 @@
       beginApplicationFromToken(token);
     });
 
-    // Confirm buttons
     el("backBtn").addEventListener("click", () => {
       currentBadgeToken = null;
       currentApplicant = null;
       lookupOk = false;
-      setSubmitEnabled(false);
+      refreshSubmitEnabled();
       show("idle");
       setTimeout(() => badgeInputEl.focus(), 50);
     });
@@ -1230,7 +1489,11 @@
         return;
       }
 
-      const positionId = positionSelectEl.value || null;
+      const positionId = String(positionSelectEl.value || "").trim() || null;
+      if (!positionId) {
+        statusEl.innerText = "Please select a position.";
+        return;
+      }
 
       statusEl.innerText = "Submitting...";
       const resp = await window.jobappid.apply({
@@ -1240,6 +1503,19 @@
       });
 
       if (!resp.ok) {
+        const code = resp?.error?.code || "";
+        if (code === "POSITION_FULL") {
+          statusEl.innerText = "Not hiring: this position is full (apps under review).";
+          return;
+        }
+        if (code === "POSITION_PAUSED") {
+          statusEl.innerText = "Not hiring: this position is paused by the manager.";
+          return;
+        }
+        if (code === "POSITION_REQUIRED") {
+          statusEl.innerText = "Please select a position.";
+          return;
+        }
         statusEl.innerText = "Error: " + (resp.error?.message ?? "Submit failed");
         return;
       }
@@ -1248,13 +1524,11 @@
       el("successLine").innerText = `Submitted to ${cachedMe.business.name}`;
       el("successMeta").innerText = `Application ID: ${r.application_id} | Time: ${r.submitted_at}`;
 
-      // Build receipt text and show it (QR image removed)
       const receiptString = buildReceiptText(r);
 
       show("success");
       setReceiptText(receiptString);
 
-      // Reset email panel each success
       if (emailInputEl) emailInputEl.value = "";
       showEmailPanel(false);
       closeKeyboard();
@@ -1268,7 +1542,7 @@
       currentBadgeToken = null;
       currentApplicant = null;
       lookupOk = false;
-      setSubmitEnabled(false);
+      refreshSubmitEnabled();
       lastReceiptString = "";
       if (qrTextEl) qrTextEl.value = "";
       if (emailInputEl) emailInputEl.value = "";
@@ -1282,8 +1556,6 @@
     });
 
     initAdminVisibility();
-
-    // Start boot
     boot();
   </script>
 </body>

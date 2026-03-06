@@ -121,6 +121,12 @@ function createWindow() {
 // =========================
 // ✅ Auto-update (Option A)
 // =========================
+//
+// KEY FIX:
+// - Your kiosk prevents window close unless allowClose=true.
+// - If you rely on "install on quit", updates won't apply because kiosk never quits.
+// - So when update is downloaded, we flip allowClose=true and call quitAndInstall().
+//
 function initAutoUpdate() {
   // Only run updater in packaged builds (NOT during npm run dev)
   if (!app.isPackaged) {
@@ -128,10 +134,13 @@ function initAutoUpdate() {
     return;
   }
 
-  // Auto behavior
+  // ---- behavior ----
   autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
 
+  // IMPORTANT: don't wait for a normal quit; kiosk rarely quits
+  autoUpdater.autoInstallOnAppQuit = false;
+
+  // ---- logs ----
   autoUpdater.on("checking-for-update", () => console.log("[update] checking..."));
   autoUpdater.on("update-available", (info) => console.log("[update] available", info?.version));
   autoUpdater.on("update-not-available", () => console.log("[update] none"));
@@ -139,16 +148,37 @@ function initAutoUpdate() {
   autoUpdater.on("download-progress", (p) => {
     console.log(`[update] downloading ${Math.round(p.percent)}%`);
   });
+
+  // When download finishes, APPLY IT (works with your allowClose lock)
   autoUpdater.on("update-downloaded", (info) => {
-    console.log("[update] downloaded", info?.version, "- will install on quit");
-    // If you ever want immediate install, we can switch to:
-    // autoUpdater.quitAndInstall();
+    console.log("[update] downloaded", info?.version, "- installing now...");
+
+    // Allow the kiosk window to close so the app can restart
+    allowClose = true;
+
+    // Small delay so logs flush and Electron settles
+    setTimeout(() => {
+      try {
+        // quitAndInstall(isSilent?, isForceRunAfter?)
+        // - isSilent=true avoids extra prompts where possible
+        // - forceRunAfter=true relaunches the kiosk after install
+        autoUpdater.quitAndInstall(true, true);
+      } catch (e) {
+        console.log("[update] quitAndInstall failed", e);
+      }
+    }, 1500);
   });
 
-  // Check shortly after launch
+  // ---- initial check shortly after launch ----
   setTimeout(() => {
     autoUpdater.checkForUpdates().catch((e) => console.log("[update] check failed", e));
   }, 3000);
+
+  // ---- periodic check (every 6 hours) ----
+  const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch((e) => console.log("[update] periodic check failed", e));
+  }, SIX_HOURS_MS);
 }
 
 app.whenReady().then(() => {
