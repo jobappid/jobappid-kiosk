@@ -5,22 +5,30 @@
   "description": "JobAppID Kiosk",
   "author": "JobAppID",
   "private": true,
+
   "scripts": {
     "build": "tsc",
     "dev": "npm run build && electron .",
     "start": "npm run build && electron .",
     "rebuild": "electron-rebuild -f -w keytar",
+
     "pack": "npm run build && npm run rebuild && electron-builder --dir",
     "dist": "npm run build && npm run rebuild && electron-builder",
+
     "pack:linux": "npm run build && npm run rebuild && electron-builder --linux --arm64 --dir",
     "dist:linux": "npm run build && npm run rebuild && electron-builder --linux --arm64",
+
+    "dist:pi": "npm run dist:linux",
+
     "postinstall": "electron-builder install-app-deps"
   },
+
   "dependencies": {
     "electron-store": "^8.2.0",
     "electron-updater": "^6.7.3",
     "keytar": "^7.9.0"
   },
+
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
     "@types/node": "^22.0.0",
@@ -29,36 +37,27 @@
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   },
+
   "build": {
     "appId": "com.jobappid.kiosk",
     "productName": "JobAppID Kiosk",
+
     "asar": true,
     "asarUnpack": [
       "**/node_modules/keytar/**"
     ],
+
     "files": [
       "dist/**/*",
       "public/**/*",
       "package.json"
     ],
+
     "directories": {
       "buildResources": "build",
       "output": "release"
     },
-    "win": {
-      "icon": "build/icon.ico",
-      "target": [
-        "nsis"
-      ],
-      "artifactName": "JobAppID-Kiosk-Setup-${version}.exe"
-    },
-    "nsis": {
-      "oneClick": true,
-      "perMachine": true,
-      "allowToChangeInstallationDirectory": false,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    },
+
     "linux": {
       "category": "Utility",
       "icon": "build/icon.png",
@@ -72,6 +71,7 @@
       ],
       "artifactName": "JobAppID-Kiosk-${version}-linux-${arch}.${ext}"
     },
+
     "publish": [
       {
         "provider": "github",
