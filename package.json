@@ -1,6 +1,6 @@
 {
   "name": "jobappid-kiosk",
-  "version": "1.0.42",
+  "version": "1.0.43",
   "main": "dist/main.js",
   "description": "JobAppID Kiosk",
   "author": "JobAppID",
